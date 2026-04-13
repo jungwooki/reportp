@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P-REPORT | EPL Standard Performance Report</title>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+            },
+            slatebrand: {
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --a4-width: 210mm;
+      --a4-height: 297mm;
+    }
+
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', 'sans-serif';
+      letter-spacing: -0.015em;
+      background: #eef2f7; 
+      color: #334155;
+    }
+
+    .page-a4 {
+      width: var(--a4-width);
+      height: var(--a4-height);
+      margin: 8mm auto;
+      background: #ffffff;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+      box-sizing: border-box;
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: 10mm 11mm 7mm 11mm;
+      row-gap: 4.5mm;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .page-a4:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    .page-header, .page-content, .page-footer { min-height: 0; }
+    .page-content { display: flex; flex-direction: column; }
+
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .brand-wrap { display: flex; align-items: flex-start; gap: 10px; }
+    .brand-mark { font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: #0284c7; }
+    .report-title { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 2px; }
+    .report-subtitle { font-size: 10px; color: #64748b; margin-top: 4px; }
+
+    .page-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: #0369a1;
+      background: #e0f2fe;
+      border: 1px solid #bae6fd;
+      border-radius: 9999px;
+      padding: 5px 10px;
+      white-space: nowrap;
+    }
+
+    .card-report {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.03);
+    }
+
+    .soft-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-accent {
+      width: 6px; height: 18px; background: #0ea5e9; border-radius: 9999px; display: inline-block;
+    }
+
+    .footer-note {
+      display: flex; justify-content: space-between; align-items: end; gap: 10px;
+      font-size: 7px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 2.5mm; line-height: 1.3;
+    }
+    .footer-copy { font-weight: 700; color: #64748b; white-space: nowrap; }
+
+    .score-bar-bg { background: #e2e8f0; }
+    .score-good { background: #10b981; }
+    .score-caution { background: #f59e0b; }
+    .score-danger { background: #ef4444; }
+
+    /* 데이터 입력 패널 스타일 */
+    .floating-edit-panel {
+      background: #0f172a; color: white;
+      border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;
+      box-shadow: 0 16px 40px rgba(2, 8, 23, 0.35);
+    }
+    .edit-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; }
+    .edit-label { color: #cbd5e1; font-size: 10px; font-weight: 700; margin-bottom: 4px; display: block; }
+    .edit-input, .edit-select {
+      width: 100%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px; padding: 7px 9px; font-size: 12px; color: #ffffff; line-height: 1.2;
+    }
+    .edit-select option { color: #111827; background: #ffffff; }
+
+    /* 텍스트 영역 스타일 */
+    textarea {
+      resize: none;
+      overflow: hidden;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    textarea:focus {
+      border-color: #0ea5e9 !important;
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.1);
+      background: #ffffff !important;
+    }
+
+    .doctor-name-input {
+      width: 90px; background: transparent; border: 0; border-bottom: 1px solid #cbd5e1;
+      outline: none; text-align: right; font-weight: 700; color: #334155; padding: 1px 2px;
+      transition: border-color 0.2s;
+    }
+    .doctor-name-input:focus { border-color: #0ea5e9; }
+
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+      body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      * { filter: none !important; backdrop-filter: none !important; text-shadow: none !important; }
+      .page-a4 { margin: 0; box-shadow: none !important; }
+      .no-print { display: none !important; }
+      textarea { border-color: transparent !important; background: transparent !important; box-shadow: none !important; }
+      .doctor-name-input { border-bottom: 1px solid #cbd5e1 !important; }
+    }
+  </style>
+</head>
+<body class="antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const Icon = ({ name, size = 20, className = "" }) => {
+      useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name, size, className]);
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    };
+
+    const getHrvSignal = (type, value) => {
+      switch (type) {
+        case 'sdnn':
+          if (value >= 131) return 'red';
+          return value >= 60 ? 'green' : value >= 40 ? 'yellow' : 'red';
+        case 'rmssd': 
+          if (value >= 130) return 'red'; 
+          return value >= 50 ? 'green' : value >= 30 ? 'yellow' : 'red';
+        
+        // LF와 HF의 기준 한 자리 숫자 단위로 변경 (기존값 / 10)
+        case 'lf': 
+          if (value > 8.0 || value < 2.5) return 'red';
+          if ((value >= 6.6 && value <= 8.0) || (value >= 2.5 && value <= 3.9)) return 'yellow';
+          return 'green';
+        case 'hf': 
+          return value >= 4.5 ? 'green' : value >= 3.0 ? 'yellow' : 'red';
+          
+        case 'lfhf': 
+          if (value > 4.0 || value < 0.5) return 'red';
+          if ((value >= 2.9 && value <= 4.0) || (value >= 0.5 && value <= 0.9)) return 'yellow';
+          return 'green';
+        case 'stress': 
+          return value < 35 ? 'green' : value <= 45 ? 'yellow' : 'red';
+        default:
+          return 'green';
+      }
+    };
+
+    const App = () => {
+      // 입력 패널 State
+      const [showInputs, setShowInputs] = useState(false);
+      const [inputs, setInputs] = useState({
+        name: "박유찬",
+        birthDate: "2013.08.15",
+        teamName: "유스 FC 아카데미",
+        chartNo: "P-2026-102",
+        phvStage: 0, 
+        ecwRatio: 0.385,
+        bodyFat: 12.5,
+        stressIdx: 34,
+        sdnn: 46.3, 
+        rmssd: 135.4, 
+        lf: 6.8,    
+        hf: 5.5,    
+        lfhf: 1.47  
+      });
+
+      const [ultrasound, setUltrasound] = useState({
+        achilles: { left: 'GREEN', right: 'GREEN' },
+        patellar: { left: 'YELLOW', right: 'YELLOW' },
+        plantar: { left: 'GREEN', right: 'GREEN' }
+      });
+
+      const [doctorName, setDoctorName] = useState("이정욱 주치의");
+      const [doctorComment, setDoctorComment] = useState("");
+      const [ultrasoundComment, setUltrasoundComment] = useState("");
+
+      const phvPenalty = inputs.phvStage === 0;
+
+      const signals = {
+        sdnn: getHrvSignal('sdnn', inputs.sdnn),
+        rmssd: getHrvSignal('rmssd', inputs.rmssd),
+        lf: getHrvSignal('lf', inputs.lf),
+        hf: getHrvSignal('hf', inputs.hf),
+        lfhf: getHrvSignal('lfhf', inputs.lfhf),
+        stress: getHrvSignal('stress', inputs.stressIdx)
+      };
+
+      const applyPenalty = (sig) => (phvPenalty && sig === 'yellow') ? 'red' : sig;
+      
+      const adjSignals = {
+        sdnn: applyPenalty(signals.sdnn),
+        rmssd: applyPenalty(signals.rmssd),
+        lf: signals.lf 
+      };
+
+      const isHyperResponsive = inputs.rmssd >= 130 || inputs.sdnn >= 131;
+
+      let quadrant = 0;
+      let quadName = "";
+      
+      // 보호자가 이해하기 쉬운 용어로 변경
+      if (isHyperResponsive) {
+        quadrant = 3; quadName = "제3사분면 (극도 과긴장 / 훈련 중단 필요)";
+      } else if (inputs.sdnn >= 60 && inputs.rmssd >= 50) { 
+        quadrant = 1; quadName = "제1사분면 (최상위 컨디션)"; 
+      } else if (inputs.sdnn >= 60 && inputs.rmssd < 50) { 
+        quadrant = 2; quadName = "제2사분면 (일시적 피로 / 휴식 필요)"; 
+      } else if (inputs.sdnn < 60 && inputs.rmssd >= 50) { 
+        quadrant = 3; quadName = "제3사분면 (만성 피로 / 부상 주의)"; 
+      } else { 
+        quadrant = 4; quadName = "제4사분면 (체력 고갈 / 집중 회복 필요)"; 
+      }
+
+      // 위험도 점수 계산
+      const getRiskScore = (val, upperLimit, lowerYellow, lowerRed) => {
+          if(upperLimit && val >= upperLimit) return 90; 
+          if(val >= lowerYellow) return 10;
+          if(val >= lowerRed) return 50;
+          return 90;
+      };
+
+      const r_sdnn = getRiskScore(inputs.sdnn, 131, 60, 40);
+      const r_rmssd = getRiskScore(inputs.rmssd, 130, 50, 30);
+      const r_lf = signals.lf === 'red' ? 90 : signals.lf === 'yellow' ? 50 : 10; 
+
+      const baseRisk = (r_sdnn * 0.45) + (r_rmssd * 0.45) + (r_lf * 0.10);
+      const phvMultiplier = { "-2": 0.9, "-1": 1.0, "0": 1.35, "1": 1.15, "2": 1.0 }[inputs.phvStage] || 1.0;
+      
+      // 100점 만점의 심리적 공포감을 방지하기 위해 상한선(Soft Cap) 적용
+      let rawGrowthRiskIdx = baseRisk * phvMultiplier;
+      
+      // 80점이 넘어갈 경우 점수 상승폭을 둔화시킴
+      let cappedGrowthRiskIdx = rawGrowthRiskIdx > 80 
+        ? 80 + (rawGrowthRiskIdx - 80) * 0.4 
+        : rawGrowthRiskIdx;
+        
+      // 절대 수치가 95.8점을 넘지 않도록 제한
+      const growthRiskIdx = Math.min(95.8, cappedGrowthRiskIdx);
+
+      // 동적 3대 종합 퍼포먼스 지표 생성
+      const indices = useMemo(() => {
+        let recVal = 100;
+        if (isHyperResponsive) recVal = 30.0;
+        else if (inputs.rmssd >= 50) recVal = Math.min(100, 75.0 + (inputs.rmssd - 50) * 0.5);
+        else if (inputs.rmssd >= 30) recVal = 45.0 + (inputs.rmssd - 30) * 1.0;
+        else recVal = Math.max(10, inputs.rmssd);
+        
+        const recStatus = recVal >= 70 ? 'green' : recVal >= 40 ? 'yellow' : 'red';
+
+        let otsVal = baseRisk;
+        if (inputs.stressIdx > 45) otsVal += 15;
+        otsVal = Math.min(100, otsVal);
+        
+        const otsStatus = otsVal >= 70 ? 'red' : otsVal >= 40 ? 'yellow' : 'green';
+
+        let redsVal = 20.0;
+        if (inputs.bodyFat < 8 || inputs.bodyFat > 18) redsVal += 40;
+        else if (inputs.bodyFat < 10 || inputs.bodyFat > 15) redsVal += 20;
+        if (inputs.ecwRatio > 0.390) redsVal += 35;
+        else if (inputs.ecwRatio > 0.385) redsVal += 15;
+        redsVal = Math.min(100, redsVal);
+        
+        const redsStatus = redsVal >= 70 ? 'red' : redsVal >= 40 ? 'yellow' : 'green';
+
+        return { recVal, recStatus, otsVal, otsStatus, redsVal, redsStatus };
+      }, [inputs, isHyperResponsive, baseRisk]);
+
+      // 의사 소견 및 초음파 소견 초안 생성
+      useEffect(() => {
+        let dc = `${inputs.name} 선수는 자율신경 지표 분석 결과, 현재 [${quadName}]에 위치하고 있습니다.\n\n`;
+        
+        if (isHyperResponsive) {
+          dc += "⚠️ [경고 소견] 피로가 심하게 누적된 상태에서 급성 회복력(RMSSD)이 비정상적으로 높게 관찰됩니다. 이는 몸이 극심한 스트레스로부터 살아남기 위해 억지로 회복 모드를 끌어올린 '과반응(방어기제)' 상태입니다. 겉으로는 체력이 남아있는 것처럼 보이나, 실제로는 한계치에 다다른 상태이므로 햄스트링이나 인대 파열 등 훈련 중 부상 위험이 폭발적으로 높습니다. 당분간 훈련 강도를 대폭 낮추고 철저한 휴식과 안정을 취할 것을 강력히 권고합니다.";
+        } else if (quadrant === 1) {
+          dc += "기초 체력(SDNN)과 단기 회복력(RMSSD) 모두 우수합니다. 지속적인 고강도 훈련을 무리 없이 소화할 수 있는 아주 건강하고 안정적인 상태를 유지하고 있습니다.";
+        } else if (quadrant === 2) {
+          dc += "기초 체력(SDNN)은 튼튼하지만, 단기 회복력(RMSSD)이 떨어져 있습니다. 최근 훈련이나 경기 등으로 인한 피로가 완전히 풀리지 않고 남아있으므로 무리한 훈련보다는 컨디션 조절이 필요합니다.";
+        } else if (quadrant === 3) {
+          dc += "기초 체력이 많이 떨어져 있는 상태에서 부상 위험도가 높은 패턴을 보입니다. 실제 뛸 수 있는 체력이 부족하므로 각별한 주의가 필요합니다.";
+        } else {
+          dc += "자율신경계 지표 전반에 걸쳐 피로 방전 상태가 뚜렷합니다. 훈련 부하를 대폭 줄이고 며칠간 적극적인 휴식과 컨디셔닝 관리가 시급합니다.";
+        }
+
+        if (phvPenalty) dc += `\n\n또한 현재 키가 훌쩍 크는 '급성장기(PHV)' 구간에 진입해 있습니다. 이 시기에는 뼈가 자라는 속도를 근육과 인대가 따라가지 못해 관절이 매우 팽팽해집니다. 동일한 피로도라도 성인보다 부상 위험도를 한 단계 더 높여서(보수적으로) 관리해야 합니다.`;
+        setDoctorComment(dc);
+
+        setUltrasoundComment(`주요 하체 부위에 성장기 아이들 특유의 팽팽해진 근육 장력과 무리하게 사용한 흔적이 관찰됩니다. 자율신경 분석 결과와 종합해 볼 때 현재 다리 근육의 긴장도가 매우 높아져 있을 가능성이 큽니다. 운동 전후 하체 스트레칭을 평소의 2배 이상으로 늘리고, 훈련 직후 15분간 꼭 얼음 찜질을 적용하여 염증을 가라앉혀 주시길 권장합니다.`);
+      }, [quadName, isHyperResponsive, quadrant, phvPenalty, inputs.name]);
+
+      const handlePrint = () => window.print();
+
+      return (
+        <div className="min-h-screen pb-10 print:pb-0 font-medium">
+          
+          {/* 플로팅 데이터 입력 패널 (인쇄 시 숨김) */}
+          <div className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 no-print ${showInputs ? 'translate-y-0' : '-translate-y-[93%]'}`}>
+            <div className="floating-edit-panel p-8 pb-12">
+              <div className="max-w-6xl mx-auto space-y-5">
+                <div className="flex justify-between items-center border-b border-white/15 pb-3">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Icon name="settings" size={20} /> P-REPORT 측정 데이터 입력
+                  </h2>
+                  <button onClick={() => setShowInputs(false)} className="text-slate-400 hover:text-white">
+                    <Icon name="x" size={24} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-5 gap-4">
+                  <InputGroup title="1. 선수 프로필">
+                    <Input label="이름" value={inputs.name} onChange={v => setInputs({...inputs, name: v})} type="text" />
+                    <Input label="생년월일" value={inputs.birthDate} onChange={v => setInputs({...inputs, birthDate: v})} type="text" />
+                    <Input label="소속팀" value={inputs.teamName} onChange={v => setInputs({...inputs, teamName: v})} type="text" />
+                    <Select label="성장단계(PHV)" value={inputs.phvStage} onChange={v => setInputs({...inputs, phvStage: parseInt(v)})}>
+                      <option value="-2">PHV -2 (이전)</option>
+                      <option value="-1">PHV -1 (시작)</option>
+                      <option value="0">PHV 0 (급성장기/위험)</option>
+                      <option value="1">PHV 1 (둔화)</option>
+                      <option value="2">PHV 2 (성장종료)</option>
+                    </Select>
+                  </InputGroup>
+
+                  <InputGroup title="2. 자율신경 2축 (만성/급성)">
+                    <AutoSignalInput label="SDNN (만성 탄력성, ms)" value={inputs.sdnn} onChange={v => setInputs({...inputs, sdnn: v})} signal={signals.sdnn} />
+                    <AutoSignalInput label="RMSSD (급성 회복력, ms)" value={inputs.rmssd} onChange={v => setInputs({...inputs, rmssd: v})} signal={signals.rmssd} />
+                  </InputGroup>
+
+                  <InputGroup title="3. 자율신경 보조 지표">
+                    <AutoSignalInput label="LF (교감신경, nu)" value={inputs.lf} onChange={v => setInputs({...inputs, lf: v})} signal={signals.lf} />
+                    <AutoSignalInput label="HF (부교감신경, nu)" value={inputs.hf} onChange={v => setInputs({...inputs, hf: v})} signal={signals.hf} />
+                    <AutoSignalInput label="LF/HF Ratio (비율)" value={inputs.lfhf} onChange={v => setInputs({...inputs, lfhf: v})} signal={signals.lfhf} />
+                    <AutoSignalInput label="종합 스트레스 (유비오점수)" value={inputs.stressIdx} onChange={v => setInputs({...inputs, stressIdx: v})} signal={signals.stress} />
+                  </InputGroup>
+
+                  <InputGroup title="4. 체성분 데이터">
+                    <Input label="ECW-Ratio (세포수분밸런스)" step="0.001" value={inputs.ecwRatio} onChange={v => setInputs({...inputs, ecwRatio: v})} type="number" />
+                    <Input label="체지방률 (%)" step="0.1" value={inputs.bodyFat} onChange={v => setInputs({...inputs, bodyFat: v})} type="number" />
+                  </InputGroup>
+
+                  <InputGroup title="5. 초음파 판독 (좌 → 우)">
+                    <UltrasoundInput label="아킬레스건" value={ultrasound.achilles} onChange={v => setUltrasound({...ultrasound, achilles: v})} />
+                    <UltrasoundInput label="무릎(슬개건)" value={ultrasound.patellar} onChange={v => setUltrasound({...ultrasound, patellar: v})} />
+                    <UltrasoundInput label="발바닥(족저)" value={ultrasound.plantar} onChange={v => setUltrasound({...ultrasound, plantar: v})} />
+                  </InputGroup>
+                </div>
+              </div>
+            </div>
+
+            <button onClick={() => setShowInputs(!showInputs)} className="mx-auto flex items-center justify-center gap-2 bg-sky-600 text-white px-6 py-2.5 rounded-b-lg shadow-md font-bold text-sm hover:bg-sky-700">
+              {showInputs ? '데이터 창 닫기' : '측정 데이터 입력하기 (Click)'}
+            </button>
+          </div>
+
+          <button
+            onClick={handlePrint}
+            className="no-print fixed bottom-8 right-8 z-50 bg-slate-900 hover:bg-slate-800 text-white px-6 py-4 rounded-full shadow-xl font-bold flex items-center gap-2 text-lg border border-white/10"
+          >
+            <Icon name="printer" size={24} /> PDF 저장 및 인쇄
+          </button>
+
+          {/* =====================================================================
+              PAGE 1: 종합분석
+          ====================================================================== */}
+          <div className="page-a4">
+            <div className="page-header">
+              <div className="report-header">
+                <div className="brand-wrap">
+                  <div>
+                    <div className="brand-mark">HAEON P-REPORT</div>
+                    <div className="report-title">선수 피지컬상태 종합 리포트</div>
+                    <div className="report-subtitle">Pro-Level Physical Status & Risk Analysis</div>
+                  </div>
+                </div>
+                <div className="page-badge">PAGE 1 · 종합분석</div>
+              </div>
+            </div>
+
+            <div className="page-content space-y-5">
+              <div className="card-report p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{inputs.name} <span className="text-base font-normal text-slate-500">선수</span></div>
+                    <div className="text-sm text-slate-500 mt-1">{inputs.teamName}</div>
+                  </div>
+                  <div className="text-right bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+                    <div className="text-xs text-slate-400 font-medium mb-0.5">기본 정보</div>
+                    <div className="text-sm font-semibold text-slate-700">{inputs.birthDate}</div>
+                    <div className="text-xs text-slate-500 mt-1">{inputs.chartNo}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="section-title"><span className="section-accent"></span>성장 가중치를 고려한 종합 부상위험도</h2>
+                <div className="bg-slate-900 rounded-2xl p-6 flex items-center gap-8 text-white">
+                  <div className="flex-1">
+                    <div className="inline-block bg-sky-600 text-white text-[11px] font-bold px-2.5 py-1 rounded mb-3">글로벌 표준 및 보정 모델 적용</div>
+                    <h3 className="text-2xl font-extrabold mb-2">Growth Risk Index</h3>
+                    <p className="text-slate-300 text-sm leading-relaxed font-medium">
+                      국제 표준 심박변이도 기준에 유소년 선수의 <b>급성장기(PHV) 취약성 가중치</b>를 반영하여 산출한 종합 부상 위험도입니다. 점수가 높을수록 비접촉성 손상 및 오버트레이닝 확률이 증가합니다.
+                    </p>
+                  </div>
+                  <CircularScore score={growthRiskIdx} isHyper={isHyperResponsive} />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <h2 className="section-title"><span className="section-accent"></span>퍼포먼스 및 컨디션 모니터링</h2>
+                <p className="text-slate-500 text-sm font-semibold mb-4">
+                  측정된 원시 데이터를 기반으로 다음 훈련 소화 능력과 피로도를 직관적으로 평가합니다.
+                </p>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <ScoreCard
+                    icon="battery-charging"
+                    title="선수 컨디션 지수 (회복력)"
+                    desc="다음 훈련을 안정적으로 소화할 수 있는 회복 상태를 의미합니다. (높을수록 양호)"
+                    value={indices.recVal}
+                    status={indices.recStatus}
+                  />
+                  <ScoreCard
+                    icon="activity"
+                    title="과부하 위험도 (OTS)"
+                    desc="몸이 견디기 어려울 정도로 피로가 누적되고 있는지 확인합니다. (높을수록 위험)"
+                    value={indices.otsVal}
+                    status={indices.otsStatus}
+                  />
+                  <ScoreCard
+                    icon="flame"
+                    title="성장 에너지 부족 위험도 (RED-S)"
+                    desc="뼈와 근육의 성장에 쓰일 에너지 여유가 충분한지 확인합니다. (높을수록 위험)"
+                    value={indices.redsVal}
+                    status={indices.redsStatus}
+                  />
+                </div>
+              </div>
+
+              {/* 한의학 포인트 박스 (최하단) */}
+              <HanMedicalNote text="IOC와 FIFA가 경고하는 OTS(과부하)와 RED-S(에너지 부족)는 근거중심 한의학의 허약체질(허증) 개념과 완벽히 일치합니다. 유소년 성장기에는 피지컬 강화 못지않게 지치지 않도록 철저히 컨디셔닝을 관리하는 것이 선수 생명에 매우 중요합니다." />
+            </div>
+
+            <PageFooter />
+          </div>
+
+          {/* =====================================================================
+              PAGE 2: 자율신경 정밀 교차 분석
+          ====================================================================== */}
+          <div className="page-a4">
+            <div className="page-header">
+              <div className="report-header">
+                <div className="brand-wrap">
+                  <div>
+                    <div className="brand-mark">HAEON P-REPORT</div>
+                    <div className="report-title">자율신경 정밀 교차 분석</div>
+                    <div className="report-subtitle">Autonomic Nervous System Dynamic Balance</div>
+                  </div>
+                </div>
+                <div className="page-badge">PAGE 2 · 상세분석</div>
+              </div>
+            </div>
+
+            <div className="page-content space-y-5">
+              <div className="card-report p-5 flex items-center gap-7">
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">4사분면(Quadrant) 교차 분석 차트</h3>
+                  <p className="text-slate-600 text-sm leading-relaxed font-medium mb-4">
+                    기초 체력(SDNN)과 급성 회복력(RMSSD)을 교차 분석하여 4사분면(Quadrant)으로 진단합니다. 현재 위치에 따라 선수의 부상 위험 및 훈련 적합도를 직관적으로 파악할 수 직관적으로 파악할 수 있습니다.
+                  </p>
+                  <div className={`border rounded-lg p-3 ${isHyperResponsive ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
+                     <p className="text-xs text-slate-700 font-bold mb-1">현재 선수의 위치:</p>
+                     <p className={`text-sm font-extrabold ${isHyperResponsive ? 'text-red-600' : 'text-sky-700'}`}>{quadName}</p>
+                     {phvPenalty && <p className="text-[10px] text-red-500 font-bold mt-1">* 성장기(PHV) 페널티: 부상에 더 취약한 시기이므로 주의가 필요합니다.</p>}
+                     {isHyperResponsive && <p className="text-[10px] text-red-600 font-bold mt-1">* 위험(경고): 비정상적인 수치 상승(과반응 징후)이 감지되었습니다!</p>}
+                  </div>
+                </div>
+                <div className="w-[215px] h-[215px] flex items-center justify-center shrink-0">
+                  <QuadrantChart sdnn={inputs.sdnn} rmssd={inputs.rmssd} isHyper={isHyperResponsive} />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <h3 className="section-title"><span className="section-accent"></span>자율신경과 부상위험 지표</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <DetailBox title="기초 체력과 피로 회복" icon="battery-charging">
+                    <DetailSignal label="만성 탄력성 (SDNN)" value={`${inputs.sdnn.toFixed(1)} ms`} signal={adjSignals.sdnn} desc="선수의 '기초 체력과 피로에 대한 저항력'을 의미합니다. 이 수치가 높을수록 빡빡한 훈련과 경기를 지치지 않고 소화할 수 있습니다." />
+                    <DetailSignal label="급성 회복력 (RMSSD)" value={`${inputs.rmssd.toFixed(1)} ms`} signal={adjSignals.rmssd} desc="어제 받은 훈련의 피로가 오늘 얼마나 잘 회복되었는지 보여주는 '회복 속도'입니다. 수치가 뚝 떨어지거나 비정상적으로 치솟으면 즉각적인 휴식이 필요합니다." />
+                  </DetailBox>
+
+                  <DetailBox title="자율신경 밸런스" icon="activity">
+                    <DetailSignal label="교감신경 활성도 (LF)" value={inputs.lf.toFixed(1)} signal={adjSignals.lf} desc="훈련이나 경기 중 에너지를 내게 하는 '교감신경'입니다. 수치가 너무 높으면 선수의 몸이 과도하게 긴장하고 과열된 상태로 부상 위험이 커집니다." />
+                    <DetailSignal label="부교감신경 활성도 (HF)" value={inputs.hf.toFixed(1)} signal={signals.hf} desc="훈련 후 몸을 편안하게 회복시켜주는 '부교감신경'입니다. 수치가 높을수록 수면의 질이 좋고, 근육과 인대의 피로가 원활하게 회복되고 있다는 뜻입니다." />
+                  </DetailBox>
+
+                  <DetailBox title="전체적인 심신 부하" icon="scale">
+                    <DetailSignal label="자율신경 균형도 (LF/HF)" value={inputs.lfhf.toFixed(2)} signal={signals.lfhf} desc="에너지를 쓰는 교감신경과 회복을 돕는 부교감신경의 밸런스입니다. 이 균형이 깨지면 선수의 컨디션이 급격히 불안정해집니다." />
+                    <DetailSignal label="종합 스트레스 지수" value={inputs.stressIdx} signal={signals.stress} desc="선수가 현재 견디고 있는 육체적, 심리적 피로와 압박감을 종합한 점수입니다." />
+                  </DetailBox>
+
+                  <DetailBox title="부상과 연관된 체성분" icon="droplets">
+                    <DetailSignal label="세포 수분 밸런스 (부종/염증)" value={inputs.ecwRatio.toFixed(3)} signal={inputs.ecwRatio > 0.390 ? 'red' : inputs.ecwRatio > 0.385 ? 'yellow' : 'green'} desc="[⭐ 매우 중요] 근육 세포 밖의 수분 비율입니다. 훈련 후 근육에 미세한 염증이나 붓기가 얼마나 남아있는지를 보여주는 핵심 지표입니다." />
+                    <DetailSignal label="에너지 저장고 (체지방률)" value={`${inputs.bodyFat.toFixed(1)}%`} signal={(inputs.bodyFat >= 10 && inputs.bodyFat <= 15) ? 'green' : (inputs.bodyFat < 8 || inputs.bodyFat > 18) ? 'red' : 'yellow'} desc="성장과 고강도 훈련을 모두 버텨내기 위해 내 몸에 비축해둔 든든한 영양의 원천입니다." />
+                  </DetailBox>
+                </div>
+              </div>
+
+            </div>
+
+            <PageFooter />
+          </div>
+
+          {/* =====================================================================
+              PAGE 3: 근골격계 부상 위험도 예측 평가
+          ====================================================================== */}
+          <div className="page-a4">
+            <div className="page-header">
+              <div className="report-header">
+                <div className="brand-wrap">
+                  <div>
+                    <div className="brand-mark">HAEON P-REPORT</div>
+                    <div className="report-title">근골격계 부상 위험도 동적 예측 평가</div>
+                    <div className="report-subtitle">Ultrasound and Doctor Comment</div>
+                  </div>
+                </div>
+                <div className="page-badge">PAGE 3 · 부상예측평가</div>
+              </div>
+            </div>
+
+            <div className="page-content space-y-5">
+              <div className="card-report p-4">
+                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                  <Icon name="target" /> 성장기 축구선수 필수 관절 체크 (초음파)
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <UltrasoundCard name="무릎 (슬개건)" left={ultrasound.patellar.left} right={ultrasound.patellar.right} />
+                  <UltrasoundCard name="발목 뒤 (아킬레스건)" left={ultrasound.achilles.left} right={ultrasound.achilles.right} />
+                  <UltrasoundCard name="발바닥 (족저근막)" left={ultrasound.plantar.left} right={ultrasound.plantar.right} />
+                </div>
+
+                <div className="mt-4 flex justify-center gap-5 text-xs font-bold text-slate-600">
+                  <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-green-500"></div> 양호</span>
+                  <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-yellow-500"></div> 주의</span>
+                  <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div> 위험(경고)</span>
+                </div>
+              </div>
+
+              {/* 수정 가능한 텍스트 영역 1 */}
+              <div className="soft-card p-4 transition-colors hover:bg-slate-50">
+                <h4 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <Icon name="search" size={18} className="text-sky-600" /> 부위별 초음파 상세소견 <span className="text-[10px] text-slate-400 font-normal bg-white px-1.5 py-0.5 rounded border ml-auto no-print">수정 가능</span>
+                </h4>
+                <textarea
+                  value={ultrasoundComment}
+                  onChange={(e) => setUltrasoundComment(e.target.value)}
+                  className="w-full text-sm text-slate-800 leading-relaxed font-semibold bg-transparent border border-transparent rounded p-1 resize-none"
+                  rows={4}
+                  spellCheck={false}
+                />
+              </div>
+
+              {/* 수정 가능한 텍스트 영역 2 */}
+              <div className="card-report p-4 border-sky-200 transition-colors hover:border-sky-300">
+                <h4 className="text-base font-bold text-slate-900 mb-3 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Icon name="stethoscope" size={18} className="text-sky-600" /> 담당 주치의 종합 평가 <span className="text-[10px] text-sky-500 font-normal bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100 ml-auto no-print">수정 가능</span>
+                </h4>
+                <textarea
+                  value={doctorComment}
+                  onChange={(e) => setDoctorComment(e.target.value)}
+                  className={`w-full text-base leading-relaxed font-bold bg-transparent border border-transparent rounded p-1 resize-none ${isHyperResponsive ? 'text-red-700' : 'text-slate-900'}`}
+                  rows={9}
+                  spellCheck={false}
+                />
+
+                <div className="mt-4 flex justify-end">
+                  <div className="text-sm text-slate-500 flex items-center gap-2">
+                    <span>주치의:</span>
+                    <input
+                      type="text"
+                      value={doctorName}
+                      onChange={(e) => setDoctorName(e.target.value)}
+                      className="doctor-name-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 한의학 포인트 박스 (최하단) */}
+              <HanMedicalNote text="초음파상 관찰되는 국소 부위의 뻣뻣함과 장력은 미세한 염증 산물인 어혈(瘀血)이 누적된 상태로, 혈류 개선을 통한 이완이 큰 도움이 됩니다." />
+            </div>
+
+            <PageFooter />
+          </div>
+
+          {/* =====================================================================
+              PAGE 4: 부모님을 위한 홈케어 가이드
+          ====================================================================== */}
+          <div className="page-a4">
+            <div className="page-header">
+              <div className="report-header">
+                <div className="brand-wrap">
+                  <div>
+                    <div className="brand-mark">HAEON P-REPORT</div>
+                    <div className="report-title">부모님을 위한 홈케어 가이드</div>
+                    <div className="report-subtitle">Home Care and Nutrition Guide</div>
+                  </div>
+                </div>
+                <div className="page-badge">PAGE 4 · 가이드</div>
+              </div>
+            </div>
+
+            <div className="page-content space-y-6">
+              
+              <div>
+                <h2 className="section-title"><span className="section-accent"></span>오늘부터 이렇게 실천해 주세요</h2>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="card-report p-5 flex flex-col items-center text-center">
+                    <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center mb-3">
+                      <Icon name="snowflake" size={20} />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mb-2">하체 마사지와 냉찜질</h3>
+                    <p className="text-slate-600 font-medium leading-relaxed text-xs">
+                      운동 후 허벅지와 종아리를 가볍게 풀어주고, 무릎과 발목이 뻐근할 때는 10~15분 정도 냉찜질을 해 주세요.
+                    </p>
+                  </div>
+
+                  <div className="card-report p-5 flex flex-col items-center text-center">
+                    <div className="w-10 h-10 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center mb-3">
+                      <Icon name="moon" size={20} />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 mb-2">수면 시간과 코어 운동</h3>
+                    <p className="text-slate-600 font-medium leading-relaxed text-xs">
+                      최소 8시간 이상 푹 자는 수면이 중요합니다. 급성장기에는 무리한 점프보다 가벼운 코어 운동과 정렬 훈련이 더 도움이 됩니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 text-white rounded-2xl p-6 mt-2 flex-1">
+                <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+                  <Icon name="info" className="text-sky-400" /> 부모님을 위한 영양 가이드
+                </h2>
+                <p className="text-slate-300 text-xs mb-5 font-medium">
+                  운동과 성장 모두를 지지할 수 있도록 식사 타이밍과 수분 보충을 함께 관리해 주세요.
+                </p>
+
+                <div className="space-y-4">
+                  <NutritionRow 
+                    time="훈련 전" 
+                    icon="sun" 
+                    items={[
+                      "시작 2~3시간 전 소화가 잘 되는 밥, 국수, 파스타 등을 섭취합니다.", 
+                      "기름진 음식은 복부 불편감을 유발할 수 있어 주의합니다.", 
+                      "훈련 전까지 물을 조금씩 자주 마시는 습관이 중요합니다."
+                    ]} 
+                  />
+                  <NutritionRow 
+                    time="훈련 직후" 
+                    icon="zap" 
+                    items={[
+                      "운동 직후 30분 내 우유, 요거트, 바나나 등으로 빠르게 보충합니다.", 
+                      "땀을 많이 흘렸다면 수분과 전해질 보충을 신경 써 주세요.", 
+                      "과일은 회복과 피로 감소에 도움이 됩니다."
+                    ]} 
+                  />
+                  <NutritionRow 
+                    time="평상시 집밥" 
+                    icon="home" 
+                    items={[
+                      "단백질 반찬은 매 끼니 챙겨 주세요.", 
+                      "칼슘과 비타민 D 섭취를 꾸준히 유지해 주세요.", 
+                      "하루 전체 수분 섭취량을 안정적으로 확보하는 것이 중요합니다."
+                    ]} 
+                  />
+                </div>
+              </div>
+
+              {/* 한의학 포인트 박스 (최하단) */}
+              <HanMedicalNote text="약식동원(藥食同源), 즉 음식은 곧 약입니다. 균형 잡힌 영양 섭취는 근육의 미세 손상을 수복하고 뼈를 윤택하게 하는 훌륭한 보약입니다." />
+            </div>
+
+            <PageFooter />
+          </div>
+
+          {/* =====================================================================
+              PAGE 5: 용어 가이드 및 리포트 해석 방법
+          ====================================================================== */}
+          <div className="page-a4">
+            <div className="page-header">
+              <div className="report-header">
+                <div className="brand-wrap">
+                  <div>
+                    <div className="brand-mark">HAEON P-REPORT</div>
+                    <div className="report-title">용어 가이드 및 리포트 해석 방법</div>
+                    <div className="report-subtitle">Terminology & Interpretation Guide</div>
+                  </div>
+                </div>
+                <div className="page-badge">PAGE 5 · 해석가이드</div>
+              </div>
+            </div>
+
+            <div className="page-content space-y-6">
+              
+              <div className="bg-slate-900 text-white rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Icon name="alert-triangle" className="text-yellow-400" /> [필독] 자율신경 데이터 해석 가이드
+                </h2>
+                <div className="space-y-4">
+                  <div className="bg-white/10 border border-white/10 rounded-lg p-4">
+                    <h5 className="font-bold text-yellow-400 text-[13px] mb-2 flex items-center gap-1.5">
+                      <Icon name="activity" size={14} /> 1. 수치가 높다고 무조건 좋은 것이 아닙니다 (과반응 징후)
+                    </h5>
+                    <p className="text-xs font-medium text-slate-300 leading-relaxed text-justify">
+                      선수들의 리포트에서 <b>RMSSD(급성 회복력)가 130ms 이상으로 비정상적으로 높게 나올 때</b>가 있습니다. 이는 체력이 좋아서가 아니라, 피로가 너무 많이 쌓인 나머지 몸이 강제로 휴식을 취하려고 <b>부교감신경을 억지로 과하게 끌어올린 '과반응(방어기제)' 상태</b>입니다. 근육과 인대가 풀려있어 부상 위험이 매우 높으므로 각별한 휴식이 필요합니다.
+                    </p>
+                  </div>
+                  <div className="bg-white/10 border border-white/10 rounded-lg p-4">
+                    <h5 className="font-bold text-sky-400 text-[13px] mb-2 flex items-center gap-1.5">
+                      <Icon name="line-chart" size={14} /> 2. 유소년 특화 성장 가중치(PHV) 보정
+                    </h5>
+                    <p className="text-xs font-medium text-slate-300 leading-relaxed text-justify">
+                      우리 아이들은 성인과 달리 뼈가 먼저 자라고 근육과 인대가 나중에 늘어납니다. 특히 <b>키가 훌쩍 크는 '급성장기(PHV)'에는 관절과 근육이 매우 팽팽해져 부상에 훨씬 취약</b>합니다. 본 리포트는 이러한 아이들의 성장 시기를 반영하여, 부상 위험 신호를 성인보다 훨씬 더 민감하고 철저하게 잡아냅니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-2 border-t border-slate-200 pt-4 flex-1">
+                <h4 className="text-[11px] font-bold text-slate-700 mb-2">[P-REPORT 분석 기준 및 국제 의학 가이드라인]</h4>
+                <ul className="text-[9px] text-slate-500 space-y-1.5 leading-relaxed text-justify">
+                  <li><b>1. 국제 자율신경 표준 준수 (International HRV Standards):</b> 본 리포트의 측정 및 분석 알고리즘은 유럽심장학회(ESC) 및 북미심장박동전기생리학회(NASPE)가 공동 제정한 심박변이도(HRV) 국제 임상 가이드라인의 기준을 준수합니다.</li>
+                  <li><b>2. 성장기 데이터 보정 (Biological Maturation Calibration):</b> 선수의 신체 측정 데이터를 기반으로 급성장기(PHV) 보정 상수(Multiplier)를 적용해 컨디셔닝 상태를 세밀하게 추적합니다.</li>
+                  <li><b>3. 보수적 손상 예측 모델 (Conservative Injury Model):</b> 해외 엘리트 구단에서 활용하는 지표들을 바탕으로, SDNN(만성 체력)과 RMSSD(급성 회복력) 교차 분석 시 '단기 과반응(Hyper-responsiveness)' 징후를 면밀히 모니터링하여 부상을 선제적으로 예방합니다.</li>
+                </ul>
+              </div>
+
+              {/* 한의학 포인트 박스 (최하단) */}
+              <HanMedicalNote text="객관적 데이터 모니터링을 통해 선수의 피로를 조기에 발견하고 대응하는 것은, 병이 깊어지기 전에 다스리는 치미병(治未病)의 핵심 원리입니다." />
+
+            </div>
+
+            <PageFooter />
+          </div>
+        </div>
+      );
+    };
+
+    // Helper Components - UI
+    const InputGroup = ({ title, children }) => (
+      <div className="edit-card space-y-3">
+        <h5 className="text-[11px] font-bold text-slate-300 border-b border-white/10 pb-2">{title}</h5>
+        <div className="grid gap-2">{children}</div>
+      </div>
+    );
+
+    const Input = ({ label, value, onChange, step = "0.01", type = "text" }) => (
+      <div className="flex flex-col gap-1">
+        <label className="edit-label">{label}</label>
+        <input type={type} step={step} value={value} onChange={e => onChange(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)} className="edit-input" />
+      </div>
+    );
+
+    const Select = ({ label, value, onChange, children }) => (
+      <div className="flex flex-col gap-1">
+        <label className="edit-label">{label}</label>
+        <select value={value} onChange={e => onChange(e.target.value)} className="edit-select">{children}</select>
+      </div>
+    );
+
+    const AutoSignalInput = ({ label, value, onChange, signal }) => {
+      const signalMap = {
+        green: { badge: "🟢 양호", color: "text-green-400 border-green-400" },
+        yellow: { badge: "🟡 주의", color: "text-yellow-400 border-yellow-400" },
+        red: { badge: "🔴 위험(경고)", color: "text-red-400 border-red-400" }
+      };
+      const current = signalMap[signal] || signalMap.green;
+
+      return (
+        <div className="flex flex-col gap-1 relative">
+          <label className="edit-label">{label}</label>
+          <div className="relative">
+            <input
+              type="number"
+              step="0.01"
+              value={value}
+              onChange={e => onChange(parseFloat(e.target.value) || 0)}
+              className="edit-input pr-20"
+            />
+            <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold px-1.5 py-0.5 rounded border ${current.color}`}>
+              {current.badge}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const UltrasoundInput = ({ label, value, onChange }) => (
+      <div className="flex flex-col gap-1">
+        <label className="edit-label">{label}</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[10px] text-slate-400 font-semibold mb-1">왼쪽(L)</div>
+            <select value={value.left} onChange={e => onChange({ ...value, left: e.target.value })} className="edit-select">
+              <option value="GREEN">양호</option>
+              <option value="YELLOW">주의</option>
+              <option value="ORANGE">위험(경고)</option>
+            </select>
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-400 font-semibold mb-1">오른쪽(R)</div>
+            <select value={value.right} onChange={e => onChange({ ...value, right: e.target.value })} className="edit-select">
+              <option value="GREEN">양호</option>
+              <option value="YELLOW">주의</option>
+              <option value="ORANGE">위험(경고)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+
+    const HanMedicalNote = ({ text }) => (
+      <div className="mt-auto mb-2 text-[10px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed no-print break-inside-avoid">
+        <span className="font-bold text-sky-700 mr-1">* 스포츠 한의학 포인트:</span> {text}
+      </div>
+    );
+
+    const CircularScore = ({ score, isHyper }) => {
+      const normalized = Math.max(0, Math.min(100, score));
+      const radius = 54;
+      const circumference = 2 * Math.PI * radius;
+      const dashOffset = circumference - (normalized / 100) * circumference;
+      
+      const statusText = isHyper ? '위험(경고)' : normalized >= 50 ? '위험(경고)' : normalized >= 25 ? '주의' : '양호';
+      const strokeColor = isHyper || normalized >= 50 ? '#ef4444' : normalized >= 25 ? '#f59e0b' : '#10b981';
+      const textBg = isHyper || normalized >= 50 ? 'bg-red-50 text-red-600' : normalized >= 25 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700';
+
+      return (
+        <div className={`w-[150px] h-[150px] rounded-2xl border flex items-center justify-center shrink-0 ${isHyper || normalized >= 50 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+          <div className="relative w-[128px] h-[128px]">
+            <svg width="128" height="128" viewBox="0 0 128 128" className="absolute inset-0 -rotate-90">
+              <circle cx="64" cy="64" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="10" />
+              <circle cx="64" cy="64" r={radius} fill="none" stroke={strokeColor} strokeWidth="10" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className={`text-[11px] font-bold ${isHyper || normalized >= 50 ? 'text-red-500' : 'text-slate-400'}`}>RISK SCORE</div>
+              <div className={`text-3xl font-extrabold leading-none mt-1 ${isHyper || normalized >= 50 ? 'text-red-600' : 'text-slate-900'}`}>{normalized.toFixed(1)}</div>
+              <div className={`mt-2 px-2 py-0.5 rounded text-[10px] font-bold ${textBg}`}>
+                {statusText}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const PageFooter = () => (
+      <div className="page-footer">
+        <footer className="footer-note">
+          <div className="footer-copy">© HAEON SPORTS CLINIC</div>
+          <div className="flex-1 text-right">
+            본 리포트는 선수 부상 방지 및 컨디셔닝 관리를 위해 글로벌 가이드라인 및 스포츠 한의학 관점을 융합하여 제작되었습니다. 의학적 확진용이 아니며 담당 주치의 진료를 우선합니다.
+          </div>
+        </footer>
+      </div>
+    );
+
+    const ScoreCard = ({ icon, title, desc, value, status }) => {
+      const statusText = status === 'red' ? '위험(경고)' : status === 'yellow' ? '주의' : '양호';
+      const statusColor = status === 'red' ? 'text-red-600 bg-red-50 border border-red-100' : status === 'yellow' ? 'text-yellow-700 bg-yellow-50 border border-yellow-100' : 'text-green-700 bg-green-50 border border-green-100';
+      const barClass = status === 'red' ? 'score-danger' : status === 'yellow' ? 'score-caution' : 'score-good';
+      
+      const percentage = Math.min(100, Math.max(0, value));
+
+      return (
+        <div className="card-report flex items-center gap-4 py-4 px-4">
+          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
+            <Icon name={icon} size={20} />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-bold text-slate-900 mb-0.5">{title}</h4>
+            <p className="text-[11px] text-slate-500 font-semibold leading-tight">{desc}</p>
+          </div>
+          <div className="w-[120px] flex flex-col items-end shrink-0">
+            <div className="flex justify-between w-full items-baseline mb-2">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusColor}`}>{statusText}</span>
+              <span className="text-sm font-extrabold text-slate-800">{value.toFixed(1)}</span>
+            </div>
+            <div className="w-full h-1.5 score-bar-bg rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percentage}%` }}></div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const DetailBox = ({ title, icon, children }) => (
+      <div className="card-report p-4">
+        <h4 className="text-sm font-bold mb-4 flex items-center gap-2 text-slate-900 border-b border-slate-100 pb-2">
+          <Icon name={icon} size={16} className="text-sky-600" /> {title}
+        </h4>
+        <div className="space-y-5">{children}</div>
+      </div>
+    );
+
+    const DetailSignal = ({ label, value, signal, desc }) => {
+      const signalMap = {
+        green: { badge: "🟢 양호", className: "bg-green-50 text-green-700 border-green-200" },
+        yellow: { badge: "🟡 주의", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+        red: { badge: "🔴 위험(경고)", className: "bg-red-50 text-red-600 border-red-300 font-extrabold" }
+      };
+      const current = signalMap[signal] || signalMap.green;
+
+      return (
+        <div className={`rounded-xl border p-3 ${signal === 'red' ? 'bg-red-50/50 border-red-100' : 'bg-slate-50 border-slate-200'}`}>
+          <div className="flex justify-between items-start gap-3 mb-1">
+            <div className="font-bold text-slate-800 text-xs leading-snug">{label}</div>
+            <div className={`text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap ${current.className}`}>
+              {current.badge}
+            </div>
+          </div>
+          <div className={`text-sm font-extrabold mb-1 ${signal === 'red' ? 'text-red-600' : 'text-slate-900'}`}>{value}</div>
+          <p className="text-[10px] text-slate-500 font-semibold leading-tight">{desc}</p>
+        </div>
+      );
+    };
+
+    const UltrasoundCard = ({ name, left, right }) => {
+      const getColor = (v) => v === 'GREEN' ? 'bg-green-500' : v === 'YELLOW' ? 'bg-yellow-500 text-slate-900' : 'bg-red-500';
+      const getText = (v) => v === 'GREEN' ? '양호' : v === 'YELLOW' ? '주의' : '위험(경고)';
+
+      return (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+          <h5 className="font-bold text-slate-800 text-xs mb-2.5">{name}</h5>
+          <div className="flex justify-center gap-3">
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-slate-500 font-bold mb-1">왼쪽(L)</span>
+              <span className={`px-2.5 py-0.5 rounded text-white font-bold text-[11px] border border-black/10 ${getColor(left)}`}>{getText(left)}</span>
+            </div>
+            <div className="w-px bg-slate-200"></div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-slate-500 font-bold mb-1">오른쪽(R)</span>
+              <span className={`px-2.5 py-0.5 rounded text-white font-bold text-[11px] border border-black/10 ${getColor(right)}`}>{getText(right)}</span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const QuadrantChart = ({ sdnn, rmssd, isHyper }) => {
+      const size = 220;
+      const padding = 25;
+      const chartSize = size - padding * 2;
+      const maxVal = 140; 
+
+      const getX = (val) => padding + (Math.min(Math.max(val, 0), maxVal) / maxVal) * chartSize;
+      const getY = (val) => size - padding - (Math.min(Math.max(val, 0), maxVal) / maxVal) * chartSize;
+
+      const midX = getX(60); 
+      const midY = getY(50); 
+
+      const dotX = getX(sdnn);
+      const dotY = getY(rmssd);
+
+      return (
+        <div className="relative flex items-center justify-center w-[220px] h-[220px]">
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+            
+            <rect x={padding} y={padding} width={midX - padding} height={midY - padding} fill="#fef3c7" opacity="0.4" />
+            <rect x={midX} y={padding} width={size - padding - midX} height={midY - padding} fill="#d1fae5" opacity="0.4" />
+            <rect x={padding} y={midY} width={midX - padding} height={size - padding - midY} fill="#fee2e2" opacity="0.4" />
+            <rect x={midX} y={midY} width={size - padding - midX} height={size - padding - midY} fill="#e0f2fe" opacity="0.4" />
+
+            <defs>
+              <pattern id="hyper-pattern" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#ef4444" strokeWidth="2" opacity="0.4" />
+              </pattern>
+            </defs>
+            <rect x={getX(131)} y={padding} width={size - padding - getX(131)} height={size - padding * 2} fill="url(#hyper-pattern)" />
+            <rect x={padding} y={padding} width={size - padding * 2} height={getY(130) - padding} fill="url(#hyper-pattern)" />
+
+            <line x1={padding} y1={midY} x2={size - padding} y2={midY} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 4" />
+            <line x1={midX} y1={padding} x2={midX} y2={size - padding} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 4" />
+            
+            <rect x={padding} y={padding} width={chartSize} height={chartSize} fill="none" stroke="#cbd5e1" strokeWidth="1" />
+
+            <text x={padding + 6} y={padding + 14} fill="#d97706" fontSize="9" fontWeight="bold">Q3. 만성 피로</text>
+            <text x={size - padding - 6} y={padding + 14} fill="#059669" fontSize="9" fontWeight="bold" textAnchor="end">Q1. 최상위</text>
+            <text x={padding + 6} y={size - padding - 6} fill="#dc2626" fontSize="9" fontWeight="bold">Q4. 체력 고갈</text>
+            <text x={size - padding - 6} y={size - padding - 6} fill="#0284c7" fontSize="9" fontWeight="bold" textAnchor="end">Q2. 일시 피로</text>
+
+            <text x={size / 2} y={size - 5} fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle">SDNN (만성 탄력성)</text>
+            <text x={10} y={size / 2} fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle" transform={`rotate(-90 10 ${size / 2})`}>RMSSD (급성 회복력)</text>
+
+            <text x={midX} y={size - padding + 10} fill="#94a3b8" fontSize="8" textAnchor="middle">60</text>
+            <text x={padding - 10} y={midY + 3} fill="#94a3b8" fontSize="8" textAnchor="middle">50</text>
+
+            {isHyper && (
+              <circle cx={dotX} cy={dotY} r="12" fill="#ef4444" opacity="0.3" />
+            )}
+            <circle cx={dotX} cy={dotY} r="5" fill={isHyper ? "#dc2626" : "#0f172a"} stroke="#ffffff" strokeWidth="2" />
+            
+            <rect x={dotX + 6} y={dotY - 16} width="40" height="14" rx="3" fill="#1e293b" opacity="0.9" />
+            <text x={dotX + 26} y={dotY - 6} fill="#ffffff" fontSize="8" fontWeight="bold" textAnchor="middle">
+              {sdnn}, {rmssd}
+            </text>
+
+          </svg>
+        </div>
+      );
+    };
+
+    // 영양 가이드 행 컴포넌트
+    const NutritionRow = ({ time, items, icon }) => (
+      <div className="bg-white/10 rounded-lg p-4 flex gap-3">
+        <div className="w-8 h-8 rounded bg-white/15 flex items-center justify-center shrink-0">
+          <Icon name={icon} size={16} />
+        </div>
+        <div>
+          <h5 className="font-bold text-white text-sm mb-2">{time}</h5>
+          <ul className="space-y-1.5">
+            {items.map((item, i) => (
+              <li key={i} className="text-xs font-medium text-slate-200 flex items-start gap-1.5">
+                <span className="text-sky-400 mt-0.5 text-[10px]">■</span> <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

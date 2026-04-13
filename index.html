@@ -193,16 +193,18 @@
       switch (type) {
         case 'sdnn':
           if (value >= 131) return 'red';
-          return value >= 60 ? 'green' : value >= 40 ? 'yellow' : 'red';
+          return value >= 50 ? 'green' : value >= 30 ? 'yellow' : 'red'; 
         case 'rmssd': 
           if (value >= 130) return 'red'; 
-          return value >= 50 ? 'green' : value >= 30 ? 'yellow' : 'red';
+          return value >= 40 ? 'green' : value >= 20 ? 'yellow' : 'red'; 
+        
         case 'lf': 
-          if (value > 80 || value < 25) return 'red';
-          if ((value >= 66 && value <= 80) || (value >= 25 && value <= 39)) return 'yellow';
+          if (value > 8.0 || value < 2.5) return 'red';
+          if ((value >= 6.6 && value <= 8.0) || (value >= 2.5 && value <= 3.9)) return 'yellow';
           return 'green';
         case 'hf': 
-          return value >= 45 ? 'green' : value >= 30 ? 'yellow' : 'red';
+          return value >= 4.5 ? 'green' : value >= 3.0 ? 'yellow' : 'red';
+          
         case 'lfhf': 
           if (value > 4.0 || value < 0.5) return 'red';
           if ((value >= 2.9 && value <= 4.0) || (value >= 0.5 && value <= 0.9)) return 'yellow';
@@ -228,8 +230,8 @@
         stressIdx: 34,
         sdnn: 46.3, 
         rmssd: 135.4, 
-        lf: 68.0,   
-        hf: 55.0,   
+        lf: 6.8,    
+        hf: 5.5,    
         lfhf: 1.47  
       });
 
@@ -267,17 +269,16 @@
       let quadrant = 0;
       let quadName = "";
       
-      // 보호자가 이해하기 쉬운 용어로 변경
       if (isHyperResponsive) {
-        quadrant = 3; quadName = "제3사분면 (극도 과긴장 / 훈련 중단 필요)";
-      } else if (inputs.sdnn >= 60 && inputs.rmssd >= 50) { 
+        quadrant = 3; quadName = "제3사분면 (수동적 과긴장 / 훈련 조절 필요)";
+      } else if (inputs.sdnn >= 50 && inputs.rmssd >= 40) { 
         quadrant = 1; quadName = "제1사분면 (최상위 컨디션)"; 
-      } else if (inputs.sdnn >= 60 && inputs.rmssd < 50) { 
+      } else if (inputs.sdnn >= 50 && inputs.rmssd < 40) { 
         quadrant = 2; quadName = "제2사분면 (일시적 피로 / 휴식 필요)"; 
-      } else if (inputs.sdnn < 60 && inputs.rmssd >= 50) { 
+      } else if (inputs.sdnn < 50 && inputs.rmssd >= 40) { 
         quadrant = 3; quadName = "제3사분면 (만성 피로 / 부상 주의)"; 
       } else { 
-        quadrant = 4; quadName = "제4사분면 (체력 고갈 / 집중 회복 필요)"; 
+        quadrant = 4; quadName = "제4사분면 (체력 저하 / 집중 회복 필요)"; 
       }
 
       // 위험도 점수 계산
@@ -288,20 +289,25 @@
           return 90;
       };
 
-      const r_sdnn = getRiskScore(inputs.sdnn, 131, 60, 40);
-      const r_rmssd = getRiskScore(inputs.rmssd, 130, 50, 30);
+      const r_sdnn = getRiskScore(inputs.sdnn, 131, 50, 30);
+      const r_rmssd = getRiskScore(inputs.rmssd, 130, 40, 20);
       const r_lf = signals.lf === 'red' ? 90 : signals.lf === 'yellow' ? 50 : 10; 
 
       const baseRisk = (r_sdnn * 0.45) + (r_rmssd * 0.45) + (r_lf * 0.10);
       const phvMultiplier = { "-2": 0.9, "-1": 1.0, "0": 1.35, "1": 1.15, "2": 1.0 }[inputs.phvStage] || 1.0;
-      const growthRiskIdx = Math.min(100, baseRisk * phvMultiplier);
+      
+      let rawGrowthRiskIdx = baseRisk * phvMultiplier;
+      let cappedGrowthRiskIdx = rawGrowthRiskIdx > 80 
+        ? 80 + (rawGrowthRiskIdx - 80) * 0.4 
+        : rawGrowthRiskIdx;
+      const growthRiskIdx = Math.min(95.8, cappedGrowthRiskIdx);
 
       // 동적 3대 종합 퍼포먼스 지표 생성
       const indices = useMemo(() => {
         let recVal = 100;
         if (isHyperResponsive) recVal = 30.0;
-        else if (inputs.rmssd >= 50) recVal = Math.min(100, 75.0 + (inputs.rmssd - 50) * 0.5);
-        else if (inputs.rmssd >= 30) recVal = 45.0 + (inputs.rmssd - 30) * 1.0;
+        else if (inputs.rmssd >= 40) recVal = Math.min(100, 75.0 + (inputs.rmssd - 40) * 0.5);
+        else if (inputs.rmssd >= 20) recVal = 45.0 + (inputs.rmssd - 20) * 1.0;
         else recVal = Math.max(10, inputs.rmssd);
         
         const recStatus = recVal >= 70 ? 'green' : recVal >= 40 ? 'yellow' : 'red';
@@ -324,27 +330,67 @@
         return { recVal, recStatus, otsVal, otsStatus, redsVal, redsStatus };
       }, [inputs, isHyperResponsive, baseRisk]);
 
-      // 의사 소견 및 초음파 소견 초안 생성
-      useEffect(() => {
-        let dc = `${inputs.name} 선수는 자율신경 지표 분석 결과, 현재 [${quadName}]에 위치하고 있습니다.\n\n`;
+      // 의사 소견 및 초음파 소견을 생성하는 함수 (새로고침 버튼 클릭 시에만 실행됨)
+      const generateComments = () => {
+        // --- 1. 담당 주치의 종합 평가 생성 로직 ---
+        let dc = `[종합 피지컬 & 컨디셔닝 평가]\n${inputs.name} 선수의 자율신경 지표(HRV) 및 체성분, 성장 데이터를 종합한 결과, 현재 [${quadName}]에 위치해 있습니다.\n\n`;
         
         if (isHyperResponsive) {
-          dc += "⚠️ [경고 소견] 피로가 심하게 누적된 상태에서 급성 회복력(RMSSD)이 비정상적으로 높게 관찰됩니다. 이는 몸이 극심한 스트레스로부터 살아남기 위해 억지로 회복 모드를 끌어올린 '과반응(방어기제)' 상태입니다. 겉으로는 체력이 남아있는 것처럼 보이나, 실제로는 한계치에 다다른 상태이므로 햄스트링이나 인대 파열 등 훈련 중 부상 위험이 폭발적으로 높습니다. 당분간 훈련 강도를 대폭 낮추고 철저한 휴식과 안정을 취할 것을 강력히 권고합니다.";
+          dc += "⚠️ [집중 관리 소견] 피로가 다소 누적된 상태에서 급성 회복력(RMSSD)이 일시적으로 높게 나타나는 '자율신경 과반응' 양상이 관찰됩니다. 이는 인체가 피로에 대항해 일시적으로 회복 기전을 강하게 작동시키는 상태로, 근육의 긴장도가 높아져 비접촉성 손상의 우려가 있습니다. 당분간 훈련 강도를 조금 낮추고 48시간 정도의 충분한 휴식과 적극적인 리커버리를 권장합니다.";
         } else if (quadrant === 1) {
-          dc += "기초 체력(SDNN)과 단기 회복력(RMSSD) 모두 우수합니다. 지속적인 고강도 훈련을 무리 없이 소화할 수 있는 아주 건강하고 안정적인 상태를 유지하고 있습니다.";
+          dc += "기초 체력(SDNN)과 단기 회복력(RMSSD) 모두 최상위 레벨입니다. 높은 교감/부교감 밸런스를 유지하고 있어 고강도 전술 훈련이나 연속된 매치업도 무리 없이 소화할 수 있는 'Ready to Play' 상태입니다. 현재의 훌륭한 영양 섭취와 수면 루틴을 그대로 유지하시기 바랍니다.";
         } else if (quadrant === 2) {
-          dc += "기초 체력(SDNN)은 튼튼하지만, 단기 회복력(RMSSD)이 떨어져 있습니다. 최근 훈련이나 경기 등으로 인한 피로가 완전히 풀리지 않고 남아있으므로 무리한 훈련보다는 컨디션 조절이 필요합니다.";
+          dc += "탄탄한 기초 체력을 바탕으로 잘 버티고 있으나, 단기 회복력이 다소 저하된 '일시적 피로 누적' 상태입니다. 주말 경기나 최근의 강도 높은 훈련 여파가 근육에 남아있을 수 있으므로, 훈련 볼륨은 유지하되 고강도 스프린트 부하를 조절하는 테이퍼링(Tapering) 전략을 추천합니다.";
         } else if (quadrant === 3) {
-          dc += "기초 체력이 많이 떨어져 있는 상태에서 부상 위험도가 높은 패턴을 보입니다. 실제 뛸 수 있는 체력이 부족하므로 각별한 주의가 필요합니다.";
+          dc += "기초 체력이 다소 저하되어 부상 예방에 세심한 주의가 필요한 상태입니다. 피로 회복이 지연되면서 근육의 뻣뻣함(Stiffness)이 발생할 수 있으므로, 무리한 훈련보다는 리커버리 세션 비중을 높여 부드럽게 컨디션을 끌어올려 주시길 권장합니다.";
         } else {
-          dc += "자율신경계 지표 전반에 걸쳐 피로 방전 상태가 뚜렷합니다. 훈련 부하를 대폭 줄이고 며칠간 적극적인 휴식과 컨디셔닝 관리가 시급합니다.";
+          dc += "자율신경계 지표 전반에 걸쳐 피로 누적이 뚜렷하게 관찰되는 상태입니다. 지속적인 훈련 강행은 퍼포먼스 저하로 이어질 수 있으므로, 훈련 부하를 대폭 줄이고 양질의 수면과 적극적인 휴식을 취하며 재충전하는 시간이 꼭 필요합니다.";
         }
 
-        if (phvPenalty) dc += `\n\n또한 현재 키가 훌쩍 크는 '급성장기(PHV)' 구간에 진입해 있습니다. 이 시기에는 뼈가 자라는 속도를 근육과 인대가 따라가지 못해 관절이 매우 팽팽해집니다. 동일한 피로도라도 성인보다 부상 위험도를 한 단계 더 높여서(보수적으로) 관리해야 합니다.`;
+        // RED-S (에너지 부족) 추가 코멘트
+        if (inputs.bodyFat < 10) {
+           dc += `\n\n📌 [영양 관리] 체지방률(${inputs.bodyFat}%)이 또래 엘리트 축구선수 권장 수준보다 다소 낮습니다. 고강도 훈련 시 에너지가 부족해지지(RED-S) 않도록, 식사량을 조금 늘리고 탄수화물과 양질의 단백질 보충 타이밍에 더욱 신경 써 주시길 권장합니다.`;
+        }
+
+        // PHV Penalty 코멘트
+        if (phvPenalty) {
+           dc += `\n\n📌 [성장기 특수 소견] 현재 선수는 키가 빠르게 자라는 '급성장기(PHV 0)'에 진입해 있습니다. 뼈의 성장 속도와 근육/인대의 늘어나는 속도 차이로 인해 관절 주변의 장력(Tightness)이 높아지기 쉬운 시기입니다. 훈련 후 스트레칭과 아이싱을 더욱 꼼꼼히 챙겨주시기 바랍니다.`;
+        }
         setDoctorComment(dc);
 
-        setUltrasoundComment(`주요 하체 부위에 성장기 아이들 특유의 팽팽해진 근육 장력과 무리하게 사용한 흔적이 관찰됩니다. 자율신경 분석 결과와 종합해 볼 때 현재 다리 근육의 긴장도가 매우 높아져 있을 가능성이 큽니다. 운동 전후 하체 스트레칭을 평소의 2배 이상으로 늘리고, 훈련 직후 15분간 꼭 얼음 찜질을 적용하여 염증을 가라앉혀 주시길 권장합니다.`);
-      }, [quadName, isHyperResponsive, quadrant, phvPenalty, inputs.name]);
+        // --- 2. 부위별 초음파 상세소견 동적 생성 로직 ---
+        let us = "";
+        let warnCount = 0;
+        
+        const isWarn = (val) => val === 'YELLOW' || val === 'ORANGE'; 
+        
+        if (isWarn(ultrasound.patellar.left) || isWarn(ultrasound.patellar.right)) {
+            warnCount++;
+            us += "▪️ 무릎(슬개건): 반복적인 킥과 감속 훈련으로 슬개건 하단부(경골조면) 부근에 미세한 긴장이 관찰됩니다. 성장기 특성상 무릎 앞쪽의 스트레스 관리를 위해 충분한 휴식과 훈련 직후 얼음 찜질을 권장합니다.\n";
+        }
+        if (isWarn(ultrasound.achilles.left) || isWarn(ultrasound.achilles.right)) {
+            warnCount++;
+            us += "▪️ 아킬레스건: 종골 부착부에 약간의 과긴장 흔적이 보입니다. 스프린트나 점프 시 발목 피로가 집중될 수 있으므로, 훈련 전후로 부드러운 종아리 마사지와 꼼꼼한 웜업이 필요합니다.\n";
+        }
+        if (isWarn(ultrasound.plantar.left) || isWarn(ultrasound.plantar.right)) {
+            warnCount++;
+            us += "▪️ 족저근막: 족저근막 기시부에 피로 누적 양상이 나타납니다. 그라운드 환경이나 풋워크 훈련으로 인한 발바닥 스트레스를 줄이기 위해 마사지 볼 등을 활용해 발바닥 아치를 수시로 풀어주세요.\n";
+        }
+
+        if (warnCount === 0) {
+             us = "현재 주요 하체 관절(무릎, 아킬레스건, 발바닥)의 초음파 영상 판독 결과, 구조적인 손상이나 유의미한 염증 소견은 관찰되지 않습니다. 건(Tendon)의 두께와 결 배열 상태 모두 양호하여 현재의 훈련 스케줄을 정상적으로 소화하기에 좋은 피지컬 상태입니다.\n\n다만 유소년 축구 특성상 관절 부하가 언제든 누적될 수 있으므로, 훈련 전 웜업과 훈련 후 아이싱, 폼롤러 스트레칭 루틴은 꾸준히 유지해 주시기 바랍니다.";
+        } else {
+             us += "\n[주치의 메디컬 권고사항] 위 관찰 부위는 유소년 축구선수들에게 텐션이 가장 자주 걸리는 부위들입니다. 훈련 직후 해당 부위에 10~15분간 얼음 찜질(아이싱)을 실시하여 열감을 낮추고, 대퇴사두근 및 종아리 폼롤러 마사지를 평소보다 길게 진행하여 하체 전반의 근육 긴장을 부드럽게 이완시켜 주시길 권장합니다.";
+        }
+        
+        setUltrasoundComment(us);
+      };
+
+      // 컴포넌트 마운트 시 최초 1회만 코멘트 생성
+      useEffect(() => {
+        generateComments();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
 
       const handlePrint = () => window.print();
 
@@ -359,9 +405,14 @@
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Icon name="settings" size={20} /> P-REPORT 측정 데이터 입력
                   </h2>
-                  <button onClick={() => setShowInputs(false)} className="text-slate-400 hover:text-white">
-                    <Icon name="x" size={24} />
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => { generateComments(); setShowInputs(false); }} className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors">
+                      <Icon name="check" size={14} /> 결과 보기
+                    </button>
+                    <button onClick={() => setShowInputs(false)} className="text-slate-400 hover:text-white transition-colors">
+                      <Icon name="x" size={24} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-5 gap-4">
@@ -404,8 +455,8 @@
               </div>
             </div>
 
-            <button onClick={() => setShowInputs(!showInputs)} className="mx-auto flex items-center justify-center gap-2 bg-sky-600 text-white px-6 py-2.5 rounded-b-lg shadow-md font-bold text-sm hover:bg-sky-700">
-              {showInputs ? '데이터 창 닫기' : '측정 데이터 입력하기 (Click)'}
+            <button onClick={() => { if(showInputs) generateComments(); setShowInputs(!showInputs); }} className="mx-auto flex items-center justify-center gap-2 bg-sky-600 text-white px-6 py-2.5 rounded-b-lg shadow-md font-bold text-sm hover:bg-sky-700">
+              {showInputs ? '데이터 적용 및 결과 보기' : '측정 데이터 입력하기 (Click)'}
             </button>
           </div>
 
@@ -522,13 +573,13 @@
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-slate-900 mb-2">4사분면(Quadrant) 교차 분석 차트</h3>
                   <p className="text-slate-600 text-sm leading-relaxed font-medium mb-4">
-                    기초 체력(SDNN)과 급성 회복력(RMSSD)을 교차 분석하여 4사분면(Quadrant)으로 진단합니다. 현재 위치에 따라 선수의 부상 위험 및 훈련 적합도를 직관적으로 파악할 수 있습니다.
+                    기초 체력(SDNN)과 급성 회복력(RMSSD)을 교차 분석하여 4사분면(Quadrant)으로 진단합니다. 현재 위치에 따라 선수의 부상 위험 및 훈련 적합도를 직관적으로 파악할 수 직관적으로 파악할 수 있습니다.
                   </p>
                   <div className={`border rounded-lg p-3 ${isHyperResponsive ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
                      <p className="text-xs text-slate-700 font-bold mb-1">현재 선수의 위치:</p>
                      <p className={`text-sm font-extrabold ${isHyperResponsive ? 'text-red-600' : 'text-sky-700'}`}>{quadName}</p>
                      {phvPenalty && <p className="text-[10px] text-red-500 font-bold mt-1">* 성장기(PHV) 페널티: 부상에 더 취약한 시기이므로 주의가 필요합니다.</p>}
-                     {isHyperResponsive && <p className="text-[10px] text-red-600 font-bold mt-1">* 위험(경고): 비정상적인 수치 상승(과반응 징후)이 감지되었습니다!</p>}
+                     {isHyperResponsive && <p className="text-[10px] text-red-600 font-bold mt-1">* 위험: 비정상적인 수치 상승(과반응 징후)이 감지되었습니다!</p>}
                   </div>
                 </div>
                 <div className="w-[215px] h-[215px] flex items-center justify-center shrink-0">
@@ -597,7 +648,7 @@
                 <div className="mt-4 flex justify-center gap-5 text-xs font-bold text-slate-600">
                   <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-green-500"></div> 양호</span>
                   <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-yellow-500"></div> 주의</span>
-                  <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div> 위험(경고)</span>
+                  <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-red-500"></div> 위험</span>
                 </div>
               </div>
 
@@ -610,7 +661,7 @@
                   value={ultrasoundComment}
                   onChange={(e) => setUltrasoundComment(e.target.value)}
                   className="w-full text-sm text-slate-800 leading-relaxed font-semibold bg-transparent border border-transparent rounded p-1 resize-none"
-                  rows={4}
+                  rows={6}
                   spellCheck={false}
                 />
               </div>
@@ -623,7 +674,7 @@
                 <textarea
                   value={doctorComment}
                   onChange={(e) => setDoctorComment(e.target.value)}
-                  className={`w-full text-base leading-relaxed font-bold bg-transparent border border-transparent rounded p-1 resize-none ${isHyperResponsive ? 'text-red-700' : 'text-slate-900'}`}
+                  className="w-full text-base leading-relaxed font-bold bg-transparent border border-transparent rounded p-1 resize-none text-black"
                   rows={9}
                   spellCheck={false}
                 />
@@ -649,7 +700,7 @@
           </div>
 
           {/* =====================================================================
-              PAGE 4: 부모님을 위한 홈케어 가이드 (요청된 가이드로 대체)
+              PAGE 4: 부모님을 위한 홈케어 가이드
           ====================================================================== */}
           <div className="page-a4">
             <div className="page-header">
@@ -827,7 +878,7 @@
       const signalMap = {
         green: { badge: "🟢 양호", color: "text-green-400 border-green-400" },
         yellow: { badge: "🟡 주의", color: "text-yellow-400 border-yellow-400" },
-        red: { badge: "🔴 위험(경고)", color: "text-red-400 border-red-400" }
+        red: { badge: "🔴 위험", color: "text-red-400 border-red-400" }
       };
       const current = signalMap[signal] || signalMap.green;
 
@@ -859,7 +910,7 @@
             <select value={value.left} onChange={e => onChange({ ...value, left: e.target.value })} className="edit-select">
               <option value="GREEN">양호</option>
               <option value="YELLOW">주의</option>
-              <option value="ORANGE">위험(경고)</option>
+              <option value="ORANGE">위험</option>
             </select>
           </div>
           <div>
@@ -867,7 +918,7 @@
             <select value={value.right} onChange={e => onChange({ ...value, right: e.target.value })} className="edit-select">
               <option value="GREEN">양호</option>
               <option value="YELLOW">주의</option>
-              <option value="ORANGE">위험(경고)</option>
+              <option value="ORANGE">위험</option>
             </select>
           </div>
         </div>
@@ -886,7 +937,7 @@
       const circumference = 2 * Math.PI * radius;
       const dashOffset = circumference - (normalized / 100) * circumference;
       
-      const statusText = isHyper ? '위험(경고)' : normalized >= 50 ? '위험(경고)' : normalized >= 25 ? '주의' : '양호';
+      const statusText = isHyper ? '위험' : normalized >= 50 ? '위험' : normalized >= 25 ? '주의' : '양호';
       const strokeColor = isHyper || normalized >= 50 ? '#ef4444' : normalized >= 25 ? '#f59e0b' : '#10b981';
       const textBg = isHyper || normalized >= 50 ? 'bg-red-50 text-red-600' : normalized >= 25 ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-700';
 
@@ -921,7 +972,7 @@
     );
 
     const ScoreCard = ({ icon, title, desc, value, status }) => {
-      const statusText = status === 'red' ? '위험(경고)' : status === 'yellow' ? '주의' : '양호';
+      const statusText = status === 'red' ? '위험' : status === 'yellow' ? '주의' : '양호';
       const statusColor = status === 'red' ? 'text-red-600 bg-red-50 border border-red-100' : status === 'yellow' ? 'text-yellow-700 bg-yellow-50 border border-yellow-100' : 'text-green-700 bg-green-50 border border-green-100';
       const barClass = status === 'red' ? 'score-danger' : status === 'yellow' ? 'score-caution' : 'score-good';
       
@@ -962,7 +1013,7 @@
       const signalMap = {
         green: { badge: "🟢 양호", className: "bg-green-50 text-green-700 border-green-200" },
         yellow: { badge: "🟡 주의", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-        red: { badge: "🔴 위험(경고)", className: "bg-red-50 text-red-600 border-red-300 font-extrabold" }
+        red: { badge: "🔴 위험", className: "bg-red-50 text-red-600 border-red-300 font-extrabold" }
       };
       const current = signalMap[signal] || signalMap.green;
 
@@ -982,7 +1033,7 @@
 
     const UltrasoundCard = ({ name, left, right }) => {
       const getColor = (v) => v === 'GREEN' ? 'bg-green-500' : v === 'YELLOW' ? 'bg-yellow-500 text-slate-900' : 'bg-red-500';
-      const getText = (v) => v === 'GREEN' ? '양호' : v === 'YELLOW' ? '주의' : '위험(경고)';
+      const getText = (v) => v === 'GREEN' ? '양호' : v === 'YELLOW' ? '주의' : '위험';
 
       return (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
@@ -1011,8 +1062,8 @@
       const getX = (val) => padding + (Math.min(Math.max(val, 0), maxVal) / maxVal) * chartSize;
       const getY = (val) => size - padding - (Math.min(Math.max(val, 0), maxVal) / maxVal) * chartSize;
 
-      const midX = getX(60); 
-      const midY = getY(50); 
+      const midX = getX(50); 
+      const midY = getY(40); 
 
       const dotX = getX(sdnn);
       const dotY = getY(rmssd);
@@ -1041,14 +1092,14 @@
 
             <text x={padding + 6} y={padding + 14} fill="#d97706" fontSize="9" fontWeight="bold">Q3. 만성 피로</text>
             <text x={size - padding - 6} y={padding + 14} fill="#059669" fontSize="9" fontWeight="bold" textAnchor="end">Q1. 최상위</text>
-            <text x={padding + 6} y={size - padding - 6} fill="#dc2626" fontSize="9" fontWeight="bold">Q4. 체력 고갈</text>
+            <text x={padding + 6} y={size - padding - 6} fill="#dc2626" fontSize="9" fontWeight="bold">Q4. 체력 저하</text>
             <text x={size - padding - 6} y={size - padding - 6} fill="#0284c7" fontSize="9" fontWeight="bold" textAnchor="end">Q2. 일시 피로</text>
 
             <text x={size / 2} y={size - 5} fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle">SDNN (만성 탄력성)</text>
             <text x={10} y={size / 2} fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle" transform={`rotate(-90 10 ${size / 2})`}>RMSSD (급성 회복력)</text>
 
-            <text x={midX} y={size - padding + 10} fill="#94a3b8" fontSize="8" textAnchor="middle">60</text>
-            <text x={padding - 10} y={midY + 3} fill="#94a3b8" fontSize="8" textAnchor="middle">50</text>
+            <text x={midX} y={size - padding + 10} fill="#94a3b8" fontSize="8" textAnchor="middle">50</text>
+            <text x={padding - 10} y={midY + 3} fill="#94a3b8" fontSize="8" textAnchor="middle">40</text>
 
             {isHyper && (
               <circle cx={dotX} cy={dotY} r="12" fill="#ef4444" opacity="0.3" />
@@ -1065,7 +1116,7 @@
       );
     };
 
-    // 추가된 영양 가이드 행 컴포넌트
+    // 영양 가이드 행 컴포넌트
     const NutritionRow = ({ time, items, icon }) => (
       <div className="bg-white/10 rounded-lg p-4 flex gap-3">
         <div className="w-8 h-8 rounded bg-white/15 flex items-center justify-center shrink-0">
